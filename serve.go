@@ -23,6 +23,18 @@ func Serve(c *util.Config) error {
 	if err != nil {
 		return err
 	}
+	endpointsFile := c.EndpointsFile
+	if endpointsFile != "" {
+		cache := cache.New(c.Cache, 30*time.Second)
+		_, err := newHealthHandlerWithEndpoints(c, cache)
+		if err != nil {
+			return err
+		}
+
+		log.Printf("[INFO] Starting to listen on: %s", c.ListenAddress)
+		return http.ListenAndServe(c.ListenAddress, nil)
+	}
+
 	endpoint := c.Endpoint
 	health, err := newHealthHandler(c)
 	if err != nil {
@@ -32,6 +44,51 @@ func Serve(c *util.Config) error {
 	http.Handle("/metrics", promhttp.Handler())
 	log.Printf("[INFO] Starting to listen on: %s", c.ListenAddress)
 	return http.ListenAndServe(c.ListenAddress, nil)
+}
+
+func newHealthHandlerWithEndpoints(c *util.Config, cache *cache.Cache) ([]*healthHandler, error) {
+	result := []*healthHandler{}
+	color.NoColor = true
+
+	health := &healthHandler{}
+
+	ep, err := util.LoadEndpointsFile(c.EndpointsFile)
+	if err != nil {
+		return nil, err
+	}
+
+	// cache := cache.New(c.Cache, 30*time.Second)
+	for i := range ep.Endpoints {
+		localConfig := *c
+		localConfig.Vars = ep.Endpoints[i].Vars
+		localConfig.Endpoint = ep.Endpoints[i].Pattern
+		localConfig.Spec = ep.Endpoints[i].Gossfile
+
+		cfg, err := getGossConfig(localConfig.Vars, localConfig.VarsInline, localConfig.Spec)
+		if err != nil {
+			return nil, err
+		}
+
+		output, err := getOutputer(localConfig.NoColor, localConfig.OutputFormat)
+		if err != nil {
+			return nil, err
+		}
+
+		health = &healthHandler{
+			c:             &localConfig,
+			gossConfig:    *cfg,
+			sys:           system.New(localConfig.PackageManager),
+			outputer:      output,
+			cache:         cache,
+			gossMu:        &sync.Mutex{},
+			maxConcurrent: localConfig.MaxConcurrent,
+		}
+
+		http.Handle(localConfig.Endpoint, health)
+		result = append(result, health)
+	}
+
+	return result, nil
 }
 
 func newHealthHandler(c *util.Config) (*healthHandler, error) {
@@ -65,7 +122,8 @@ type res struct {
 	statusCode int
 }
 type healthHandler struct {
-	c             *util.Config
+	c *util.Config
+
 	gossConfig    GossConfig
 	sys           *system.System
 	outputer      outputs.Outputer
@@ -97,7 +155,7 @@ func (h healthHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 func (h healthHandler) processAndEnsureCached(negotiatedContentType string, outputer outputs.Outputer) res {
 	var tra [][]resource.TestResult
-	cacheKey := "res"
+	cacheKey := h.c.Endpoint
 	tmp, found := h.cache.Get(cacheKey)
 	if found {
 		log.Printf("[TRACE] Returning cached[%s].", cacheKey)
@@ -128,6 +186,7 @@ func (h healthHandler) output(trc <-chan []resource.TestResult, outputer outputs
 	}
 	return resp
 }
+
 func (h healthHandler) validate() [][]resource.TestResult {
 	h.sys = system.New(h.c.PackageManager)
 	res := make([][]resource.TestResult, 0)

@@ -273,6 +273,25 @@ The end-point will return the stest results in the format requested and an http 
 `--max-concurrent <num>`
 :   Max number of tests to run concurrently
 
+`--endpoints-file <file>`, `-ef <file>`
+:   Goss served endpoints.
+    Sometimes it is useful to group tests by some category. For instance by a
+    service. The endpoint file allows for doing that.
+
+!!! sample endpoints-file
+    ```yaml
+    endpoints:
+      - pattern: /svc/service1
+        gossfile: ./goss-svc1.yaml
+        vars: ./vars-svc1.yaml
+      - pattern: /svc/service2
+        gossfile: ./goss-svc2.yaml
+        vars: ./vars-svc2.yaml
+      - pattern: /healthz
+        vars: ./goss-catch-all-gossfile.yaml
+        vars: ./vars-catch-all.yaml
+    ```
+
 !!! example
     ```console
     $ goss serve &

@@ -26,6 +26,7 @@ type Config struct {
 	Cache                 time.Duration
 	Debug                 bool
 	Endpoint              string
+	EndpointsFile         string
 	FormatOptions         []string
 	IgnoreList            []string
 	ListenAddress         string
@@ -112,6 +113,15 @@ func NewConfig(opts ...ConfigOption) (rc *Config, err error) {
 func WithSpecFile(f string) ConfigOption {
 	return func(c *Config) error {
 		c.Spec = f
+		return nil
+	}
+}
+
+// WithEndpointsFile sets the path to the endpoints file holding endpoints
+// configuration
+func WithEndpointsFile(f string) ConfigOption {
+	return func(c *Config) error {
+		c.EndpointsFile = f
 		return nil
 	}
 }

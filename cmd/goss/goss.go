@@ -27,6 +27,7 @@ func newRuntimeConfigFromCLI(c *cli.Context) *util.Config {
 		Debug:             c.Bool("debug"),
 		LogLevel:          c.GlobalString("log-level"),
 		Endpoint:          c.String("endpoint"),
+		EndpointsFile:     c.String("endpoints-file"),
 		FormatOptions:     c.StringSlice("format-options"),
 		IgnoreList:        c.GlobalStringSlice("exclude-attr"),
 		ListenAddress:     c.String("listen-addr"),
@@ -188,6 +189,11 @@ func main() {
 					Value:  "/healthz",
 					Usage:  "Endpoint to expose",
 					EnvVar: "GOSS_ENDPOINT",
+				},
+				cli.StringFlag{
+					Name:   "endpoints-file, ef",
+					Usage:  "Config file with endpoints to expose",
+					EnvVar: "GOSS_ENDPOINTS_FILE",
 				},
 				cli.IntFlag{
 					Name:   "max-concurrent",
@@ -371,7 +377,6 @@ func main() {
 					Action: func(c *cli.Context) error {
 						fatalAlphaIfNeeded(c)
 						return goss.AddResources(c.GlobalString("gossfile"), resource.GossFileResourceName, c.Args(), newRuntimeConfigFromCLI(c))
-
 					},
 				},
 				{
